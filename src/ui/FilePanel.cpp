@@ -1,7 +1,6 @@
 #include "FilePanel.h"
 #include "../core/LocalFileOps.h"
 #include "../core/FtpClient.h"
-#include "../core/MachineClient.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QListWidget>
@@ -22,6 +21,8 @@
 #include <QDrag>
 #include <QSettings>
 #include <QCoreApplication>
+#include <QFileInfo>
+#include <QDebug>
 
 // DragListWidget实现
 DragListWidget::DragListWidget(FilePanel *panel, QWidget *parent)
@@ -45,7 +46,7 @@ FilePanel::FilePanel(PanelType type, QWidget *parent)
     : QWidget(parent)
     , m_type(type)
     , m_ftpClient(nullptr)
-    , m_machineClient(nullptr)
+    , m_machineFtpClient(nullptr)
     , m_connectBtn(nullptr)
     , m_serverCombo(nullptr)
 {
@@ -63,9 +64,9 @@ FilePanel::FilePanel(PanelType type, QWidget *parent)
         m_ftpClient = new FtpClient(this);
     }
 
-    // 机床面板创建客户端
+    // 机床面板创建FTP客户端
     if (m_type == PanelType::Machine) {
-        m_machineClient = new MachineTcpClient(this);
+        m_machineFtpClient = new FtpClient(this);
     }
 }
 
@@ -116,8 +117,16 @@ void FilePanel::setupUI()
         connect(m_connectBtn, &QPushButton::clicked, this, &FilePanel::onConnectFtp);
     }
 
-    // 机床面板添加连接按钮
+    // 机床面板添加服务器选择下拉框和连接按钮
     if (m_type == PanelType::Machine) {
+        loadMachineServers();
+
+        m_serverCombo = new QComboBox(this);
+        for (const auto &server : m_machineServers) {
+            m_serverCombo->addItem(server.name);
+        }
+        pathLayout->addWidget(m_serverCombo);
+
         m_connectBtn = new QPushButton("连接", this);
         pathLayout->addWidget(m_connectBtn);
         connect(m_connectBtn, &QPushButton::clicked, this, &FilePanel::onConnectMachine);
@@ -205,7 +214,7 @@ void FilePanel::onItemDoubleClicked()
     } else if (m_type == PanelType::FTP && m_ftpClient) {
         QString newPath = m_currentPath.isEmpty() ? name : m_currentPath + "/" + name;
         navigateTo(newPath);
-    } else if (m_type == PanelType::Machine && m_machineClient) {
+    } else if (m_type == PanelType::Machine && m_machineFtpClient) {
         QString newPath = m_currentPath.isEmpty() ? name : m_currentPath + "/" + name;
         navigateTo(newPath);
     }
@@ -273,14 +282,14 @@ void FilePanel::updateFileList()
         for (const QString &file : files) {
             m_fileList->addItem(file);
         }
-    } else if (m_type == PanelType::Machine && m_machineClient && m_machineClient->isConnected()) {
+    } else if (m_type == PanelType::Machine && m_machineFtpClient && m_machineFtpClient->isConnected()) {
         // 添加返回上级目录项
         if (!m_currentPath.isEmpty()) {
             m_fileList->addItem("..");
         }
 
-        // 获取机床文件列表
-        QStringList files = m_machineClient->listFiles(m_currentPath);
+        // 获取机床文件列表（使用FTP）
+        QStringList files = m_machineFtpClient->listFiles(m_currentPath);
         for (const QString &file : files) {
             m_fileList->addItem(file);
         }
@@ -391,11 +400,11 @@ void FilePanel::onConnectFtp()
     }
 }
 
-bool FilePanel::connectMachine(const QString &host, int port)
+bool FilePanel::connectMachine(const QString &host, int port, const QString &user, const QString &password)
 {
-    if (!m_machineClient) return false;
+    if (!m_machineFtpClient) return false;
 
-    if (m_machineClient->connectToMachine(host, port)) {
+    if (m_machineFtpClient->connectToServer(host, port) && m_machineFtpClient->login(user, password)) {
         m_currentPath = "";
         updateFileList();
         if (m_connectBtn) m_connectBtn->setText("断开");
@@ -406,8 +415,8 @@ bool FilePanel::connectMachine(const QString &host, int port)
 
 void FilePanel::disconnectMachine()
 {
-    if (m_machineClient) {
-        m_machineClient->disconnect();
+    if (m_machineFtpClient) {
+        m_machineFtpClient->disconnect();
         m_fileList->clear();
         m_currentPath = "";
         m_pathEdit->clear();
@@ -417,37 +426,24 @@ void FilePanel::disconnectMachine()
 
 void FilePanel::onConnectMachine()
 {
-    if (!m_machineClient) return;
+    if (!m_machineFtpClient) return;
 
     // 如果已连接，则断开
-    if (m_machineClient->isConnected()) {
+    if (m_connectBtn && m_connectBtn->text() == "断开") {
         disconnectMachine();
         return;
     }
 
-    // 显示连接对话框
-    QDialog dialog(this);
-    dialog.setWindowTitle("机床连接");
-    auto *layout = new QFormLayout(&dialog);
+    // 获取选中的服务器配置
+    int index = m_serverCombo ? m_serverCombo->currentIndex() : -1;
+    if (index < 0 || index >= m_machineServers.size()) {
+        QMessageBox::warning(this, "错误", "请选择机床服务器");
+        return;
+    }
 
-    auto *hostEdit = new QLineEdit(&dialog);
-    hostEdit->setText("192.168.1.100");
-    auto *portEdit = new QLineEdit(&dialog);
-    portEdit->setText("8080");
-
-    layout->addRow("主机:", hostEdit);
-    layout->addRow("端口:", portEdit);
-
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    layout->addRow(buttons);
-
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-
-    if (dialog.exec() == QDialog::Accepted) {
-        if (!connectMachine(hostEdit->text(), portEdit->text().toInt())) {
-            QMessageBox::warning(this, "错误", "机床连接失败");
-        }
+    const auto &config = m_machineServers[index];
+    if (!connectMachine(config.host, config.port, config.user, config.password)) {
+        QMessageBox::warning(this, "错误", QString("连接机床 %1 失败").arg(config.name));
     }
 }
 
@@ -486,7 +482,28 @@ void FilePanel::dropEvent(QDropEvent *event)
 
 void FilePanel::loadFtpServers()
 {
-    QString configPath = QCoreApplication::applicationDirPath() + "/ftp_servers.ini";
+    // Try common locations so the INI works both in the build tree and next to the app binary
+    const QString appDir = QCoreApplication::applicationDirPath();
+    QStringList candidates = {
+        QDir(appDir).filePath("ftp_servers.ini"),
+        QDir(appDir).absoluteFilePath("../ftp_servers.ini"),
+        QDir(QDir::currentPath()).filePath("ftp_servers.ini"),
+        QDir(appDir).filePath("../Resources/ftp_servers.ini") // macOS .app bundle
+    };
+
+    QString configPath;
+    for (const auto &path : candidates) {
+        if (QFileInfo::exists(path)) {
+            configPath = QFileInfo(path).absoluteFilePath();
+            break;
+        }
+    }
+
+    if (configPath.isEmpty()) {
+        qWarning() << "ftp_servers.ini not found, searched:" << candidates;
+        return;
+    }
+
     QSettings settings(configPath, QSettings::IniFormat);
 
     int count = settings.value("Servers/count", 0).toInt();
@@ -499,5 +516,44 @@ void FilePanel::loadFtpServers()
         config.user = settings.value(prefix + "user").toString();
         config.password = settings.value(prefix + "password").toString();
         m_ftpServers.append(config);
+    }
+}
+
+void FilePanel::loadMachineServers()
+{
+    // Try common locations so the INI works both in the build tree and next to the app binary
+    const QString appDir = QCoreApplication::applicationDirPath();
+    QStringList candidates = {
+        QDir(appDir).filePath("machine_servers.ini"),
+        QDir(appDir).absoluteFilePath("../machine_servers.ini"),
+        QDir(QDir::currentPath()).filePath("machine_servers.ini"),
+        QDir(appDir).filePath("../Resources/machine_servers.ini") // macOS .app bundle
+    };
+
+    QString configPath;
+    for (const auto &path : candidates) {
+        if (QFileInfo::exists(path)) {
+            configPath = QFileInfo(path).absoluteFilePath();
+            break;
+        }
+    }
+
+    if (configPath.isEmpty()) {
+        qWarning() << "machine_servers.ini not found, searched:" << candidates;
+        return;
+    }
+
+    QSettings settings(configPath, QSettings::IniFormat);
+
+    int count = settings.value("Servers/count", 0).toInt();
+    for (int i = 0; i < count; ++i) {
+        QString prefix = QString("Server_%1/").arg(i);
+        FtpServerConfig config;
+        config.name = settings.value(prefix + "name").toString();
+        config.host = settings.value(prefix + "host").toString();
+        config.port = settings.value(prefix + "port", 21).toInt();
+        config.user = settings.value(prefix + "user").toString();
+        config.password = settings.value(prefix + "password").toString();
+        m_machineServers.append(config);
     }
 }

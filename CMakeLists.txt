@@ -19,7 +19,6 @@ add_executable(QtFileTransferManager
     src/ui/ProgressBar.cpp
     src/core/FileTransfer.cpp
     src/core/FtpClient.cpp
-    src/core/MachineClient.cpp
     src/core/LocalFileOps.cpp
 )
 

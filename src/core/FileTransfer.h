@@ -4,7 +4,6 @@
 #include <QObject>
 
 class FtpClient;
-class MachineClient;
 
 class FileTransfer : public QObject
 {
@@ -14,7 +13,7 @@ public:
     explicit FileTransfer(QObject *parent = nullptr);
 
     void setFtpClient(FtpClient *client) { m_ftpClient = client; }
-    void setMachineClient(MachineClient *client) { m_machineClient = client; }
+    void setMachineFtpClient(FtpClient *client) { m_machineFtpClient = client; }
 
     // FTP <-> 本地
     bool ftpToLocal(const QString &remotePath, const QString &localPath);
@@ -30,7 +29,7 @@ signals:
 
 private:
     FtpClient *m_ftpClient;
-    MachineClient *m_machineClient;
+    FtpClient *m_machineFtpClient;
 };
 
 #endif // FILETRANSFER_H

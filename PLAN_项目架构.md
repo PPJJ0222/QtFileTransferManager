@@ -35,16 +35,16 @@ QtFileTransferManager/
 ├── CMakeLists.txt
 ├── README.md
 ├── ftp_servers.ini          # FTP服务器配置文件
+├── machine_servers.ini      # 机床FTP服务器配置文件
 └── src/
     ├── main.cpp
     ├── ui/                      # UI层
     │   ├── MainWindow.h/cpp     # 三列布局主窗口
-    │   ├── FilePanel.h/cpp      # 单个文件面板(可复用)
+    │   ├── FilePanel.h/cpp      # 支持FTP/本地/机床FTP三种类型
     │   └── ProgressBar.h/cpp    # 简单进度条
     ├── core/                    # 核心业务层
     │   ├── FileTransfer.h/cpp   # 传输管理器
-    │   ├── FtpClient.h/cpp      # FTP客户端
-    │   ├── MachineClient.h/cpp  # 机床客户端抽象接口
+    │   ├── FtpClient.h/cpp      # FTP客户端（FTP和机床共用）
     │   └── LocalFileOps.h/cpp   # 本地文件操作
     └── utils/
         └── FileInfo.h           # 文件信息结构体
@@ -71,33 +71,24 @@ QtFileTransferManager/
 - 路径栏 + 刷新按钮
 - 拖拽支持
 - FTP面板: 下拉框选择服务器 + 连接按钮（配置从ftp_servers.ini读取）
+- 机床面板: 下拉框选择服务器 + 连接按钮（配置从machine_servers.ini读取，使用FTP协议）
 
 **关键文件**: `src/ui/FilePanel.h/cpp`
 
 ### 3. FileTransfer (传输管理器)
 - 协调4种传输路径
-- 调用FtpClient/MachineClient/LocalFileOps
+- 调用FtpClient/LocalFileOps（机床也使用FtpClient）
 - 发送进度信号
 
 **关键文件**: `src/core/FileTransfer.h/cpp`
 
-### 4. MachineClient (机床客户端抽象接口)
-- 抽象基类,定义统一接口
-- 支持多种协议实现 (TCP/串口/自定义)
-- 异步操作,使用Qt信号槽
+### 4. MachineClient (机床客户端) - 已调整为FTP模式
+- 机床设备现统一使用FTP协议通信
+- 复用现有FtpClient类，无需独立的机床客户端实现
+- 配置文件: `machine_servers.ini`（格式同ftp_servers.ini）
+- FilePanel机床面板持有独立的FtpClient实例
 
-**接口方法**:
-```cpp
-virtual bool connect(QString host, int port) = 0;
-virtual QStringList listFiles(QString path) = 0;
-virtual bool downloadFile(QString remotePath, QString localPath) = 0;
-virtual bool uploadFile(QString localPath, QString remotePath) = 0;
-virtual bool deleteFile(QString remotePath) = 0;
-```
-
-**扩展性**: 可实现MachineTcpClient、MachineSerialClient等具体版本
-
-**关键文件**: `src/core/MachineClient.h/cpp`
+**关键文件**: `src/ui/FilePanel.h/cpp` (机床连接逻辑)
 
 ### 5. FtpClient (FTP客户端)
 - 使用QTcpSocket实现FTP协议
@@ -167,10 +158,10 @@ virtual bool deleteFile(QString remotePath) = 0;
 - **不支持暂停/恢复**: 传输失败重新开始
 - **同步UI更新**: 使用QProgressDialog阻塞,简化线程管理
 
-### 机床协议扩展性
-- 使用工厂模式创建不同协议客户端
-- 支持TCP/串口/自定义协议
-- 建议使用简单的TLV格式 (Type-Length-Value) 如果是自定义协议
+### 机床通信协议
+- 机床设备统一使用FTP协议
+- 与FTP服务器面板共用FtpClient类
+- 配置从独立的 `machine_servers.ini` 文件读取
 
 ## CMakeLists.txt配置要点
 
@@ -195,7 +186,6 @@ add_executable(QtFileTransferManager
     src/ui/ProgressBar.cpp
     src/core/FileTransfer.cpp
     src/core/FtpClient.cpp
-    src/core/MachineClient.cpp
     src/core/LocalFileOps.cpp
 )
 
@@ -248,6 +238,24 @@ password=sam123
 ```
 
 添加新服务器：增加count值，添加对应的Server_N节。
+
+## 机床FTP服务器配置
+
+配置文件 `machine_servers.ini` 与可执行文件放在同一目录，格式与FTP服务器配置相同：
+
+```ini
+[Servers]
+count=1
+
+[Server_0]
+name=机床设备1
+host=192.168.1.100
+port=21
+user=machine
+password=pass123
+```
+
+添加新机床服务器：增加count值，添加对应的Server_N节。
 
 ---
 

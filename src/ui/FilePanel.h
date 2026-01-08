@@ -12,7 +12,6 @@ class QPushButton;
 class QLabel;
 class QMenu;
 class FtpClient;
-class MachineClient;
 class FilePanel;
 
 // 自定义列表控件，支持拖拽时设置自定义MIME数据
@@ -50,14 +49,14 @@ public:
     QString selectedFilePath() const;
     QString selectedFileName() const;
     FtpClient* ftpClient() const { return m_ftpClient; }
-    MachineClient* machineClient() const { return m_machineClient; }
+    FtpClient* machineFtpClient() const { return m_machineFtpClient; }
 
 public slots:
     void refresh();
     void navigateTo(const QString &path);
     bool connectFtp(const QString &host, int port, const QString &user, const QString &password);
     void disconnectFtp();
-    bool connectMachine(const QString &host, int port);
+    bool connectMachine(const QString &host, int port, const QString &user, const QString &password);
     void disconnectMachine();
 
 signals:
@@ -84,6 +83,7 @@ private:
     void setupUI();
     void updateFileList();
     void loadFtpServers();
+    void loadMachineServers();
 
     PanelType m_type;
     QString m_currentPath;
@@ -97,8 +97,9 @@ private:
     DragListWidget *m_fileList;
     QMenu *m_contextMenu;
     FtpClient *m_ftpClient;
-    MachineClient *m_machineClient;
+    FtpClient *m_machineFtpClient;
     QList<FtpServerConfig> m_ftpServers;
+    QList<FtpServerConfig> m_machineServers;
 };
 
 #endif // FILEPANEL_H

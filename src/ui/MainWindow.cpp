@@ -63,7 +63,7 @@ void MainWindow::setupConnections()
 
     // 设置传输管理器的客户端
     m_fileTransfer->setFtpClient(m_ftpPanel->ftpClient());
-    m_fileTransfer->setMachineClient(m_machinePanel->machineClient());
+    m_fileTransfer->setMachineFtpClient(m_machinePanel->machineFtpClient());
 }
 
 void MainWindow::onTransferProgress(int percent)

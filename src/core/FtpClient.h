@@ -15,6 +15,7 @@ public:
 
     bool connectToServer(const QString &host, int port = 21);
     bool login(const QString &user, const QString &password);
+    bool isConnected() const;
     void disconnect();
 
     QStringList listFiles(const QString &path);

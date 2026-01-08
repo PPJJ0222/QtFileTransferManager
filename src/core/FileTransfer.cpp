@@ -1,11 +1,10 @@
 #include "FileTransfer.h"
 #include "FtpClient.h"
-#include "MachineClient.h"
 
 FileTransfer::FileTransfer(QObject *parent)
     : QObject(parent)
     , m_ftpClient(nullptr)
-    , m_machineClient(nullptr)
+    , m_machineFtpClient(nullptr)
 {
 }
 
@@ -39,13 +38,13 @@ bool FileTransfer::localToFtp(const QString &localPath, const QString &remotePat
 
 bool FileTransfer::machineToLocal(const QString &remotePath, const QString &localPath)
 {
-    if (!m_machineClient) {
-        emit transferComplete(false, "机床客户端未设置");
+    if (!m_machineFtpClient) {
+        emit transferComplete(false, "机床FTP客户端未设置");
         return false;
     }
 
     emit progressChanged(0);
-    bool success = m_machineClient->downloadFile(remotePath, localPath);
+    bool success = m_machineFtpClient->downloadFile(remotePath, localPath);
     emit progressChanged(100);
     emit transferComplete(success, success ? "下载完成" : "下载失败");
     return success;
@@ -53,13 +52,13 @@ bool FileTransfer::machineToLocal(const QString &remotePath, const QString &loca
 
 bool FileTransfer::localToMachine(const QString &localPath, const QString &remotePath)
 {
-    if (!m_machineClient) {
-        emit transferComplete(false, "机床客户端未设置");
+    if (!m_machineFtpClient) {
+        emit transferComplete(false, "机床FTP客户端未设置");
         return false;
     }
 
     emit progressChanged(0);
-    bool success = m_machineClient->uploadFile(localPath, remotePath);
+    bool success = m_machineFtpClient->uploadFile(localPath, remotePath);
     emit progressChanged(100);
     emit transferComplete(success, success ? "上传完成" : "上传失败");
     return success;

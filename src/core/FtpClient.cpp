@@ -1,5 +1,6 @@
 #include "FtpClient.h"
 #include <QTcpSocket>
+#include <QAbstractSocket>
 #include <QRegularExpression>
 #include <QFile>
 
@@ -57,6 +58,11 @@ bool FtpClient::login(const QString &user, const QString &password)
     sendCommand("TYPE I");
     readResponse();
     return true;
+}
+
+bool FtpClient::isConnected() const
+{
+    return m_controlSocket && m_controlSocket->state() == QAbstractSocket::ConnectedState;
 }
 
 void FtpClient::disconnect()
