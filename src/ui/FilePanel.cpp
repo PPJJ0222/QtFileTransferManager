@@ -20,6 +20,8 @@
 #include <QDropEvent>
 #include <QMimeData>
 #include <QDrag>
+#include <QSettings>
+#include <QCoreApplication>
 
 // DragListWidget实现
 DragListWidget::DragListWidget(FilePanel *panel, QWidget *parent)
@@ -45,6 +47,7 @@ FilePanel::FilePanel(PanelType type, QWidget *parent)
     , m_ftpClient(nullptr)
     , m_machineClient(nullptr)
     , m_connectBtn(nullptr)
+    , m_serverCombo(nullptr)
 {
     setupUI();
     setAcceptDrops(true);
@@ -98,8 +101,16 @@ void FilePanel::setupUI()
     pathLayout->addWidget(m_pathEdit);
     pathLayout->addWidget(m_refreshBtn);
 
-    // FTP面板添加连接按钮
+    // FTP面板添加服务器选择下拉框和连接按钮
     if (m_type == PanelType::FTP) {
+        loadFtpServers();
+
+        m_serverCombo = new QComboBox(this);
+        for (const auto &server : m_ftpServers) {
+            m_serverCombo->addItem(server.name);
+        }
+        pathLayout->addWidget(m_serverCombo);
+
         m_connectBtn = new QPushButton("连接", this);
         pathLayout->addWidget(m_connectBtn);
         connect(m_connectBtn, &QPushButton::clicked, this, &FilePanel::onConnectFtp);
@@ -367,36 +378,16 @@ void FilePanel::onConnectFtp()
         return;
     }
 
-    // 显示连接对话框
-    QDialog dialog(this);
-    dialog.setWindowTitle("FTP连接");
-    auto *layout = new QFormLayout(&dialog);
+    // 获取选中的服务器配置
+    int index = m_serverCombo ? m_serverCombo->currentIndex() : -1;
+    if (index < 0 || index >= m_ftpServers.size()) {
+        QMessageBox::warning(this, "错误", "请选择服务器");
+        return;
+    }
 
-    auto *hostEdit = new QLineEdit(&dialog);
-    hostEdit->setText("localhost");
-    auto *portEdit = new QLineEdit(&dialog);
-    portEdit->setText("21");
-    auto *userEdit = new QLineEdit(&dialog);
-    userEdit->setText("anonymous");
-    auto *passEdit = new QLineEdit(&dialog);
-    passEdit->setEchoMode(QLineEdit::Password);
-
-    layout->addRow("主机:", hostEdit);
-    layout->addRow("端口:", portEdit);
-    layout->addRow("用户名:", userEdit);
-    layout->addRow("密码:", passEdit);
-
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    layout->addRow(buttons);
-
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-
-    if (dialog.exec() == QDialog::Accepted) {
-        if (!connectFtp(hostEdit->text(), portEdit->text().toInt(),
-                        userEdit->text(), passEdit->text())) {
-            QMessageBox::warning(this, "错误", "FTP连接失败");
-        }
+    const auto &config = m_ftpServers[index];
+    if (!connectFtp(config.host, config.port, config.user, config.password)) {
+        QMessageBox::warning(this, "错误", QString("连接 %1 失败").arg(config.name));
     }
 }
 
@@ -490,5 +481,23 @@ void FilePanel::dropEvent(QDropEvent *event)
     if (!fileName.isEmpty()) {
         emit fileDropped(sourcePanel, this, fileName);
         event->acceptProposedAction();
+    }
+}
+
+void FilePanel::loadFtpServers()
+{
+    QString configPath = QCoreApplication::applicationDirPath() + "/ftp_servers.ini";
+    QSettings settings(configPath, QSettings::IniFormat);
+
+    int count = settings.value("Servers/count", 0).toInt();
+    for (int i = 0; i < count; ++i) {
+        QString prefix = QString("Server_%1/").arg(i);
+        FtpServerConfig config;
+        config.name = settings.value(prefix + "name").toString();
+        config.host = settings.value(prefix + "host").toString();
+        config.port = settings.value(prefix + "port", 21).toInt();
+        config.user = settings.value(prefix + "user").toString();
+        config.password = settings.value(prefix + "password").toString();
+        m_ftpServers.append(config);
     }
 }

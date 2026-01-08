@@ -34,6 +34,7 @@ FTP服务器 ←→ 本地文件系统 ←→ 机床设备
 QtFileTransferManager/
 ├── CMakeLists.txt
 ├── README.md
+├── ftp_servers.ini          # FTP服务器配置文件
 └── src/
     ├── main.cpp
     ├── ui/                      # UI层
@@ -69,6 +70,7 @@ QtFileTransferManager/
 - QListWidget显示文件列表
 - 路径栏 + 刷新按钮
 - 拖拽支持
+- FTP面板: 下拉框选择服务器 + 连接按钮（配置从ftp_servers.ini读取）
 
 **关键文件**: `src/ui/FilePanel.h/cpp`
 
@@ -219,9 +221,33 @@ target_link_libraries(QtFileTransferManager
 
 - 批量文件传输
 - 传输历史记录
-- 连接配置保存
 - 文件搜索功能
 - 更丰富的错误提示
+
+## FTP服务器配置
+
+配置文件 `ftp_servers.ini` 与可执行文件放在同一目录，格式如下：
+
+```ini
+[Servers]
+count=2
+
+[Server_0]
+name=大机程序服务器
+host=192.168.18.9
+port=21
+user=SJK
+password=sam@123
+
+[Server_1]
+name=小机手动程序服务器
+host=192.168.6.19
+port=21
+user=xjjk
+password=sam123
+```
+
+添加新服务器：增加count值，添加对应的Server_N节。
 
 ---
 

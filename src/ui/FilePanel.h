@@ -5,6 +5,7 @@
 #include <QListWidget>
 #include <QMimeData>
 #include <QDrag>
+#include <QComboBox>
 
 class QLineEdit;
 class QPushButton;
@@ -32,6 +33,15 @@ class FilePanel : public QWidget
 
 public:
     enum class PanelType { FTP, Local, Machine };
+
+    // FTP服务器配置结构体
+    struct FtpServerConfig {
+        QString name;
+        QString host;
+        int port;
+        QString user;
+        QString password;
+    };
 
     explicit FilePanel(PanelType type, QWidget *parent = nullptr);
 
@@ -73,6 +83,7 @@ protected:
 private:
     void setupUI();
     void updateFileList();
+    void loadFtpServers();
 
     PanelType m_type;
     QString m_currentPath;
@@ -82,10 +93,12 @@ private:
     QPushButton *m_refreshBtn;
     QPushButton *m_upBtn;
     QPushButton *m_connectBtn;
+    QComboBox *m_serverCombo;
     DragListWidget *m_fileList;
     QMenu *m_contextMenu;
     FtpClient *m_ftpClient;
     MachineClient *m_machineClient;
+    QList<FtpServerConfig> m_ftpServers;
 };
 
 #endif // FILEPANEL_H
