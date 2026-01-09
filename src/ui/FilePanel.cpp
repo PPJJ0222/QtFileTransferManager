@@ -1,4 +1,5 @@
 #include "FilePanel.h"
+#include "StyleManager.h"
 #include "../core/LocalFileOps.h"
 #include "../core/FtpClient.h"
 #include <QVBoxLayout>
@@ -23,6 +24,11 @@
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QDebug>
+#include <QFrame>
+#include <QTimer>
+#include <QApplication>
+#include <QtConcurrent/QtConcurrent>
+#include <QTcpSocket>
 
 // DragListWidget实现
 DragListWidget::DragListWidget(FilePanel *panel, QWidget *parent)
@@ -32,12 +38,21 @@ DragListWidget::DragListWidget(FilePanel *panel, QWidget *parent)
 
 void DragListWidget::startDrag(Qt::DropActions supportedActions)
 {
-    auto *item = currentItem();
-    if (!item || item->text() == "..") return;
+    QList<QListWidgetItem*> items = selectedItems();
+    if (items.isEmpty()) return;
+
+    // 收集所有选中的文件名（排除".."）
+    QStringList fileNames;
+    for (auto *item : items) {
+        if (item->text() != "..") {
+            fileNames.append(item->text());
+        }
+    }
+    if (fileNames.isEmpty()) return;
 
     auto *drag = new QDrag(m_panel);
     auto *mimeData = new QMimeData();
-    mimeData->setData("application/x-filepanel-item", item->text().toUtf8());
+    mimeData->setData("application/x-filepanel-item", fileNames.join("\n").toUtf8());
     drag->setMimeData(mimeData);
     drag->exec(Qt::CopyAction);
 }
@@ -72,11 +87,38 @@ FilePanel::FilePanel(PanelType type, QWidget *parent)
 
 void FilePanel::setupUI()
 {
-    auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(5, 5, 5, 5);
+    // 设置面板objectName用于QSS
+    setObjectName("FilePanel");
 
-    // 标题
+    auto *mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
+
+    // === 标题栏 ===
+    auto *headerWidget = new QWidget(this);
+    headerWidget->setObjectName("PanelHeader");
+    auto *headerLayout = new QHBoxLayout(headerWidget);
+    headerLayout->setContentsMargins(12, 10, 12, 10);
+
+    // 标题图标
+    auto *iconLabel = new QLabel(this);
+    iconLabel->setFixedSize(20, 20);
+    switch (m_type) {
+    case PanelType::FTP:
+        iconLabel->setPixmap(StyleManager::buttonIcon("server").pixmap(20, 20));
+        break;
+    case PanelType::Local:
+        iconLabel->setPixmap(StyleManager::buttonIcon("local").pixmap(20, 20));
+        break;
+    case PanelType::Machine:
+        iconLabel->setPixmap(StyleManager::buttonIcon("machine").pixmap(20, 20));
+        break;
+    }
+    headerLayout->addWidget(iconLabel);
+
+    // 标题文字
     m_titleLabel = new QLabel(this);
+    m_titleLabel->setObjectName("PanelTitle");
     switch (m_type) {
     case PanelType::FTP:
         m_titleLabel->setText("FTP服务器");
@@ -88,66 +130,95 @@ void FilePanel::setupUI()
         m_titleLabel->setText("机床设备");
         break;
     }
-    m_titleLabel->setStyleSheet("font-weight: bold; font-size: 14px;");
-    layout->addWidget(m_titleLabel);
+    headerLayout->addWidget(m_titleLabel);
+    headerLayout->addStretch();
+    mainLayout->addWidget(headerWidget);
 
-    // 路径栏
+    // === 工具栏 ===
+    auto *toolbarWidget = new QWidget(this);
+    toolbarWidget->setObjectName("Toolbar");
+    auto *toolbarLayout = new QVBoxLayout(toolbarWidget);
+    toolbarLayout->setContentsMargins(8, 8, 8, 8);
+    toolbarLayout->setSpacing(6);
+
+    // 第一行：路径栏
     auto *pathLayout = new QHBoxLayout();
-    m_upBtn = new QPushButton("↑", this);
-    m_upBtn->setFixedWidth(30);
+    pathLayout->setSpacing(6);
+
+    m_upBtn = new QPushButton(this);
+    m_upBtn->setObjectName("toolButton");
+    m_upBtn->setIcon(StyleManager::buttonIcon("up"));
+    m_upBtn->setToolTip("返回上级目录");
+    m_upBtn->setFixedSize(28, 28);
+
     m_pathEdit = new QLineEdit(this);
-    m_refreshBtn = new QPushButton("刷新", this);
+    m_pathEdit->setPlaceholderText("路径...");
+
+    m_refreshBtn = new QPushButton(this);
+    m_refreshBtn->setObjectName("toolButton");
+    m_refreshBtn->setIcon(StyleManager::buttonIcon("refresh"));
+    m_refreshBtn->setToolTip("刷新");
+    m_refreshBtn->setFixedSize(28, 28);
 
     pathLayout->addWidget(m_upBtn);
-    pathLayout->addWidget(m_pathEdit);
+    pathLayout->addWidget(m_pathEdit, 1);
     pathLayout->addWidget(m_refreshBtn);
+    toolbarLayout->addLayout(pathLayout);
 
-    // FTP面板添加服务器选择下拉框和连接按钮
-    if (m_type == PanelType::FTP) {
-        loadFtpServers();
+    // 第二行：服务器选择（FTP和机床面板）
+    if (m_type == PanelType::FTP || m_type == PanelType::Machine) {
+        auto *serverLayout = new QHBoxLayout();
+        serverLayout->setSpacing(6);
+
+        if (m_type == PanelType::FTP) {
+            loadFtpServers();
+        } else {
+            loadMachineServers();
+        }
 
         m_serverCombo = new QComboBox(this);
-        for (const auto &server : m_ftpServers) {
+        const auto &servers = (m_type == PanelType::FTP) ? m_ftpServers : m_machineServers;
+        for (const auto &server : servers) {
             m_serverCombo->addItem(server.name);
         }
-        pathLayout->addWidget(m_serverCombo);
+        serverLayout->addWidget(m_serverCombo, 1);
 
         m_connectBtn = new QPushButton("连接", this);
-        pathLayout->addWidget(m_connectBtn);
-        connect(m_connectBtn, &QPushButton::clicked, this, &FilePanel::onConnectFtp);
-    }
+        m_connectBtn->setIcon(StyleManager::buttonIcon("connect"));
+        m_connectBtn->setMinimumWidth(80);
+        serverLayout->addWidget(m_connectBtn);
 
-    // 机床面板添加服务器选择下拉框和连接按钮
-    if (m_type == PanelType::Machine) {
-        loadMachineServers();
-
-        m_serverCombo = new QComboBox(this);
-        for (const auto &server : m_machineServers) {
-            m_serverCombo->addItem(server.name);
+        if (m_type == PanelType::FTP) {
+            connect(m_connectBtn, &QPushButton::clicked, this, &FilePanel::onConnectFtp);
+        } else {
+            connect(m_connectBtn, &QPushButton::clicked, this, &FilePanel::onConnectMachine);
         }
-        pathLayout->addWidget(m_serverCombo);
 
-        m_connectBtn = new QPushButton("连接", this);
-        pathLayout->addWidget(m_connectBtn);
-        connect(m_connectBtn, &QPushButton::clicked, this, &FilePanel::onConnectMachine);
+        toolbarLayout->addLayout(serverLayout);
     }
 
-    layout->addLayout(pathLayout);
+    mainLayout->addWidget(toolbarWidget);
 
-    // 文件列表
+    // === 文件列表 ===
     m_fileList = new DragListWidget(this, this);
     m_fileList->setContextMenuPolicy(Qt::CustomContextMenu);
     m_fileList->setDragEnabled(true);
     m_fileList->setDragDropMode(QAbstractItemView::DragOnly);
-    m_fileList->setSelectionMode(QAbstractItemView::SingleSelection);
-    layout->addWidget(m_fileList);
+    m_fileList->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_fileList->setAlternatingRowColors(true);
+    mainLayout->addWidget(m_fileList, 1);
 
     // 右键菜单（仅本地面板）
     m_contextMenu = new QMenu(this);
     if (m_type == PanelType::Local) {
-        m_contextMenu->addAction("新建文件夹", this, &FilePanel::onCreateFolder);
-        m_contextMenu->addAction("重命名", this, &FilePanel::onRenameFile);
-        m_contextMenu->addAction("删除", this, &FilePanel::onDeleteFile);
+        auto *createAction = m_contextMenu->addAction(StyleManager::icon("add"), "新建文件夹");
+        connect(createAction, &QAction::triggered, this, &FilePanel::onCreateFolder);
+
+        auto *renameAction = m_contextMenu->addAction(StyleManager::icon("edit"), "重命名");
+        connect(renameAction, &QAction::triggered, this, &FilePanel::onRenameFile);
+
+        auto *deleteAction = m_contextMenu->addAction(StyleManager::icon("delete"), "删除");
+        connect(deleteAction, &QAction::triggered, this, &FilePanel::onDeleteFile);
     }
 
     // 连接信号
@@ -176,6 +247,17 @@ QString FilePanel::selectedFileName() const
     auto *item = m_fileList->currentItem();
     if (!item || item->text() == "..") return {};
     return item->text();
+}
+
+QStringList FilePanel::selectedFileNames() const
+{
+    QStringList names;
+    for (auto *item : m_fileList->selectedItems()) {
+        if (item->text() != "..") {
+            names.append(item->text());
+        }
+    }
+    return names;
 }
 
 void FilePanel::refresh()
@@ -360,7 +442,10 @@ bool FilePanel::connectFtp(const QString &host, int port, const QString &user, c
     if (m_ftpClient->connectToServer(host, port) && m_ftpClient->login(user, password)) {
         m_currentPath = "";
         updateFileList();
-        if (m_connectBtn) m_connectBtn->setText("断开");
+        if (m_connectBtn) {
+            m_connectBtn->setText("断开");
+            m_connectBtn->setIcon(StyleManager::buttonIcon("disconnect"));
+        }
         return true;
     }
     return false;
@@ -373,7 +458,10 @@ void FilePanel::disconnectFtp()
         m_fileList->clear();
         m_currentPath = "";
         m_pathEdit->clear();
-        if (m_connectBtn) m_connectBtn->setText("连接");
+        if (m_connectBtn) {
+            m_connectBtn->setText("连接");
+            m_connectBtn->setIcon(StyleManager::buttonIcon("connect"));
+        }
     }
 }
 
@@ -394,10 +482,43 @@ void FilePanel::onConnectFtp()
         return;
     }
 
-    const auto &config = m_ftpServers[index];
-    if (!connectFtp(config.host, config.port, config.user, config.password)) {
-        QMessageBox::warning(this, "错误", QString("连接 %1 失败").arg(config.name));
+    // 显示loading状态
+    setLoading(true);
+    m_pendingConfig = m_ftpServers[index];
+
+    // 清理旧的watcher
+    if (m_connectWatcher) {
+        m_connectWatcher->deleteLater();
     }
+    m_connectWatcher = new QFutureWatcher<bool>(this);
+
+    connect(m_connectWatcher, &QFutureWatcher<bool>::finished, this, [this]() {
+        bool canConnect = m_connectWatcher->result();
+        if (canConnect) {
+            // 在主线程中执行实际连接
+            bool success = connectFtp(m_pendingConfig.host, m_pendingConfig.port,
+                                      m_pendingConfig.user, m_pendingConfig.password);
+            setLoading(false);
+            if (!success) {
+                QMessageBox::warning(this, "错误", QString("连接 %1 失败").arg(m_pendingConfig.name));
+            }
+        } else {
+            setLoading(false);
+            QMessageBox::warning(this, "错误", QString("无法连接到 %1").arg(m_pendingConfig.name));
+        }
+    });
+
+    // 在后台线程测试连接
+    QString host = m_pendingConfig.host;
+    int port = m_pendingConfig.port;
+    QFuture<bool> future = QtConcurrent::run([host, port]() {
+        QTcpSocket socket;
+        socket.connectToHost(host, port);
+        bool connected = socket.waitForConnected(5000);
+        if (connected) socket.disconnectFromHost();
+        return connected;
+    });
+    m_connectWatcher->setFuture(future);
 }
 
 bool FilePanel::connectMachine(const QString &host, int port, const QString &user, const QString &password)
@@ -407,7 +528,10 @@ bool FilePanel::connectMachine(const QString &host, int port, const QString &use
     if (m_machineFtpClient->connectToServer(host, port) && m_machineFtpClient->login(user, password)) {
         m_currentPath = "";
         updateFileList();
-        if (m_connectBtn) m_connectBtn->setText("断开");
+        if (m_connectBtn) {
+            m_connectBtn->setText("断开");
+            m_connectBtn->setIcon(StyleManager::buttonIcon("disconnect"));
+        }
         return true;
     }
     return false;
@@ -420,7 +544,10 @@ void FilePanel::disconnectMachine()
         m_fileList->clear();
         m_currentPath = "";
         m_pathEdit->clear();
-        if (m_connectBtn) m_connectBtn->setText("连接");
+        if (m_connectBtn) {
+            m_connectBtn->setText("连接");
+            m_connectBtn->setIcon(StyleManager::buttonIcon("connect"));
+        }
     }
 }
 
@@ -441,10 +568,43 @@ void FilePanel::onConnectMachine()
         return;
     }
 
-    const auto &config = m_machineServers[index];
-    if (!connectMachine(config.host, config.port, config.user, config.password)) {
-        QMessageBox::warning(this, "错误", QString("连接机床 %1 失败").arg(config.name));
+    // 显示loading状态
+    setLoading(true);
+    m_pendingConfig = m_machineServers[index];
+
+    // 清理旧的watcher
+    if (m_connectWatcher) {
+        m_connectWatcher->deleteLater();
     }
+    m_connectWatcher = new QFutureWatcher<bool>(this);
+
+    connect(m_connectWatcher, &QFutureWatcher<bool>::finished, this, [this]() {
+        bool canConnect = m_connectWatcher->result();
+        if (canConnect) {
+            // 在主线程中执行实际连接
+            bool success = connectMachine(m_pendingConfig.host, m_pendingConfig.port,
+                                          m_pendingConfig.user, m_pendingConfig.password);
+            setLoading(false);
+            if (!success) {
+                QMessageBox::warning(this, "错误", QString("连接机床 %1 失败").arg(m_pendingConfig.name));
+            }
+        } else {
+            setLoading(false);
+            QMessageBox::warning(this, "错误", QString("无法连接到机床 %1").arg(m_pendingConfig.name));
+        }
+    });
+
+    // 在后台线程测试连接
+    QString host = m_pendingConfig.host;
+    int port = m_pendingConfig.port;
+    QFuture<bool> future = QtConcurrent::run([host, port]() {
+        QTcpSocket socket;
+        socket.connectToHost(host, port);
+        bool connected = socket.waitForConnected(5000);
+        if (connected) socket.disconnectFromHost();
+        return connected;
+    });
+    m_connectWatcher->setFuture(future);
 }
 
 void FilePanel::dragEnterEvent(QDragEnterEvent *event)
@@ -473,9 +633,10 @@ void FilePanel::dropEvent(QDropEvent *event)
         return;
     }
 
-    QString fileName = event->mimeData()->data("application/x-filepanel-item");
-    if (!fileName.isEmpty()) {
-        emit fileDropped(sourcePanel, this, fileName);
+    QString data = event->mimeData()->data("application/x-filepanel-item");
+    QStringList fileNames = data.split("\n", Qt::SkipEmptyParts);
+    if (!fileNames.isEmpty()) {
+        emit filesDropped(sourcePanel, this, fileNames);
         event->acceptProposedAction();
     }
 }
@@ -555,5 +716,36 @@ void FilePanel::loadMachineServers()
         config.user = settings.value(prefix + "user").toString();
         config.password = settings.value(prefix + "password").toString();
         m_machineServers.append(config);
+    }
+}
+
+void FilePanel::reloadServers()
+{
+    if (m_type == PanelType::Machine && m_serverCombo) {
+        m_machineServers.clear();
+        loadMachineServers();
+        m_serverCombo->clear();
+        for (const auto &server : m_machineServers) {
+            m_serverCombo->addItem(server.name);
+        }
+    }
+}
+
+void FilePanel::setLoading(bool loading)
+{
+    m_isLoading = loading;
+    if (m_connectBtn) {
+        m_connectBtn->setEnabled(!loading);
+        m_connectBtn->setText(loading ? "连接中..." : "连接");
+    }
+    if (m_serverCombo) {
+        m_serverCombo->setEnabled(!loading);
+    }
+    m_fileList->setEnabled(!loading);
+    if (loading) {
+        m_fileList->clear();
+        m_fileList->addItem("正在连接服务器...");
+    } else {
+        m_fileList->clear();
     }
 }

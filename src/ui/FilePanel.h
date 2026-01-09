@@ -6,6 +6,7 @@
 #include <QMimeData>
 #include <QDrag>
 #include <QComboBox>
+#include <QFutureWatcher>
 
 class QLineEdit;
 class QPushButton;
@@ -48,6 +49,7 @@ public:
     QString currentPath() const;
     QString selectedFilePath() const;
     QString selectedFileName() const;
+    QStringList selectedFileNames() const;
     FtpClient* ftpClient() const { return m_ftpClient; }
     FtpClient* machineFtpClient() const { return m_machineFtpClient; }
 
@@ -58,11 +60,12 @@ public slots:
     void disconnectFtp();
     bool connectMachine(const QString &host, int port, const QString &user, const QString &password);
     void disconnectMachine();
+    void reloadServers();
 
 signals:
     void fileSelected(const QString &filePath);
     void pathChanged(const QString &newPath);
-    void fileDropped(FilePanel *source, FilePanel *target, const QString &fileName);
+    void filesDropped(FilePanel *source, FilePanel *target, const QStringList &fileNames);
 
 private slots:
     void onItemDoubleClicked();
@@ -84,6 +87,7 @@ private:
     void updateFileList();
     void loadFtpServers();
     void loadMachineServers();
+    void setLoading(bool loading);
 
     PanelType m_type;
     QString m_currentPath;
@@ -100,6 +104,9 @@ private:
     FtpClient *m_machineFtpClient;
     QList<FtpServerConfig> m_ftpServers;
     QList<FtpServerConfig> m_machineServers;
+    bool m_isLoading = false;
+    QFutureWatcher<bool> *m_connectWatcher = nullptr;
+    FtpServerConfig m_pendingConfig;
 };
 
 #endif // FILEPANEL_H

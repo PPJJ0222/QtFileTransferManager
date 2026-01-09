@@ -5,6 +5,7 @@
 
 class QProgressBar;
 class QLabel;
+class QPushButton;
 
 class ProgressBar : public QWidget
 {
@@ -16,11 +17,18 @@ public:
 public slots:
     void setProgress(int value);
     void setStatus(const QString &status);
+    void setBatchProgress(int current, int total, int filePercent);
+    void setTransferring(bool transferring);
     void reset();
+
+signals:
+    void cancelRequested();
 
 private:
     QProgressBar *m_progressBar;
     QLabel *m_statusLabel;
+    QLabel *m_percentLabel;
+    QPushButton *m_cancelBtn;
 };
 
 #endif // PROGRESSBAR_H

@@ -18,7 +18,12 @@ public:
 private slots:
     void onTransferProgress(int percent);
     void onTransferComplete(bool success, const QString &message);
-    void onFileDropped(FilePanel *source, FilePanel *target, const QString &fileName);
+    void onFilesDropped(FilePanel *source, FilePanel *target, const QStringList &fileNames);
+    void onBatchProgress(int current, int total, int filePercent);
+    void onFileTransferStarted(const QString &fileName);
+    void onCancelTransfer();
+    void onRefreshAll();
+    void onMachineConfig();
 
 private:
     void setupUI();
