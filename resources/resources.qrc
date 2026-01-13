@@ -16,5 +16,6 @@
         <file>icons/server.svg</file>
         <file>icons/machine.svg</file>
         <file>icons/local.svg</file>
+        <file>icons/dropdown.svg</file>
     </qresource>
 </RCC>
