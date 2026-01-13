@@ -33,6 +33,8 @@ jobs:
         run: |
           mkdir deploy
           copy build\Release\QtFileTransferManager.exe deploy\
+          copy ftp_servers.ini deploy\
+          copy machine_servers.ini deploy\
           windeployqt deploy\QtFileTransferManager.exe
 
       - name: Upload artifact
