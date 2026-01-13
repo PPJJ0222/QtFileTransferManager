@@ -2,8 +2,15 @@
 #define FTPCLIENT_H
 
 #include <QObject>
+#include <QList>
 
 class QTcpSocket;
+
+// FTP文件信息结构体
+struct FtpFileInfo {
+    QString name;
+    bool isDir;
+};
 
 class FtpClient : public QObject
 {
@@ -19,6 +26,8 @@ public:
     void disconnect();
 
     QStringList listFiles(const QString &path);
+    QList<FtpFileInfo> listFilesWithInfo(const QString &path);
+    QString currentDirectory();
     bool downloadFile(const QString &remotePath, const QString &localPath);
     bool uploadFile(const QString &localPath, const QString &remotePath);
     bool deleteFile(const QString &remotePath);

@@ -131,6 +131,90 @@ QStringList FtpClient::listFiles(const QString &path)
     return files;
 }
 
+QList<FtpFileInfo> FtpClient::listFilesWithInfo(const QString &path)
+{
+    // 切换目录
+    if (!path.isEmpty()) {
+        sendCommand("CWD " + path);
+        QString response = readResponse();
+        if (!response.startsWith("250")) {
+            emit error("切换目录失败: " + response);
+            return {};
+        }
+    }
+
+    // 进入被动模式
+    QString dataHost;
+    int dataPort;
+    if (!enterPassiveMode(dataHost, dataPort)) return {};
+
+    // 建立数据连接
+    QTcpSocket dataSocket;
+    dataSocket.connectToHost(dataHost, dataPort);
+    if (!dataSocket.waitForConnected(5000)) {
+        emit error("数据连接失败");
+        return {};
+    }
+
+    // 发送LIST命令
+    if (!sendCommand("LIST")) return {};
+    QString response = readResponse();
+    if (!response.startsWith("150") && !response.startsWith("125")) {
+        emit error("LIST命令失败: " + response);
+        return {};
+    }
+
+    // 读取目录列表
+    QByteArray data;
+    while (dataSocket.waitForReadyRead(3000)) {
+        data.append(dataSocket.readAll());
+    }
+    dataSocket.close();
+
+    // 等待传输完成响应
+    readResponse();
+
+    // 解析文件列表 (Unix格式: drwxr-xr-x ... filename)
+    QList<FtpFileInfo> files;
+    QString listing = QString::fromUtf8(data);
+    for (const QString &line : listing.split('\n', Qt::SkipEmptyParts)) {
+        QString trimmed = line.trimmed();
+        if (trimmed.isEmpty()) continue;
+
+        // 第一个字符表示类型：'d' = 目录，'-' = 文件
+        bool isDir = trimmed.startsWith('d');
+
+        // 取最后一个空格后的内容作为文件名
+        int lastSpace = trimmed.lastIndexOf(' ');
+        if (lastSpace > 0) {
+            FtpFileInfo info;
+            info.name = trimmed.mid(lastSpace + 1);
+            info.isDir = isDir;
+            files.append(info);
+        }
+    }
+    return files;
+}
+
+QString FtpClient::currentDirectory()
+{
+    if (!sendCommand("PWD")) return QString();
+    QString response = readResponse();
+
+    // 解析响应：257 "/path" ...
+    if (!response.startsWith("257")) {
+        return QString();
+    }
+
+    // 提取引号中的路径
+    int firstQuote = response.indexOf('"');
+    int lastQuote = response.lastIndexOf('"');
+    if (firstQuote >= 0 && lastQuote > firstQuote) {
+        return response.mid(firstQuote + 1, lastQuote - firstQuote - 1);
+    }
+    return QString();
+}
+
 bool FtpClient::downloadFile(const QString &remotePath, const QString &localPath)
 {
     // 进入被动模式

@@ -77,6 +77,7 @@ private slots:
     void onCreateFolder();
     void onConnectFtp();
     void onConnectMachine();
+    void onServerChanged(int index);
 
 protected:
     void dragEnterEvent(QDragEnterEvent *event) override;

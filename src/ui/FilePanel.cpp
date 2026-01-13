@@ -194,6 +194,10 @@ void FilePanel::setupUI()
             connect(m_connectBtn, &QPushButton::clicked, this, &FilePanel::onConnectMachine);
         }
 
+        // 切换服务器时断开当前连接
+        connect(m_serverCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                this, &FilePanel::onServerChanged);
+
         toolbarLayout->addLayout(serverLayout);
     }
 
@@ -359,10 +363,12 @@ void FilePanel::updateFileList()
             m_fileList->addItem("..");
         }
 
-        // 获取FTP文件列表
-        QStringList files = m_ftpClient->listFiles(m_currentPath);
-        for (const QString &file : files) {
-            m_fileList->addItem(file);
+        // 获取FTP文件列表（带类型信息）
+        QList<FtpFileInfo> files = m_ftpClient->listFilesWithInfo(m_currentPath);
+        for (const auto &file : files) {
+            QIcon icon = file.isDir ? StyleManager::icon("folder") : StyleManager::icon("file");
+            auto *item = new QListWidgetItem(icon, file.name);
+            m_fileList->addItem(item);
         }
     } else if (m_type == PanelType::Machine && m_machineFtpClient && m_machineFtpClient->isConnected()) {
         // 添加返回上级目录项
@@ -370,10 +376,12 @@ void FilePanel::updateFileList()
             m_fileList->addItem("..");
         }
 
-        // 获取机床文件列表（使用FTP）
-        QStringList files = m_machineFtpClient->listFiles(m_currentPath);
-        for (const QString &file : files) {
-            m_fileList->addItem(file);
+        // 获取机床文件列表（使用FTP，带类型信息）
+        QList<FtpFileInfo> files = m_machineFtpClient->listFilesWithInfo(m_currentPath);
+        for (const auto &file : files) {
+            QIcon icon = file.isDir ? StyleManager::icon("folder") : StyleManager::icon("file");
+            auto *item = new QListWidgetItem(icon, file.name);
+            m_fileList->addItem(item);
         }
     }
 }
@@ -440,7 +448,8 @@ bool FilePanel::connectFtp(const QString &host, int port, const QString &user, c
     if (!m_ftpClient) return false;
 
     if (m_ftpClient->connectToServer(host, port) && m_ftpClient->login(user, password)) {
-        m_currentPath = "";
+        // 获取当前工作目录
+        m_currentPath = m_ftpClient->currentDirectory();
         updateFileList();
         if (m_connectBtn) {
             m_connectBtn->setText("断开");
@@ -494,16 +503,15 @@ void FilePanel::onConnectFtp()
 
     connect(m_connectWatcher, &QFutureWatcher<bool>::finished, this, [this]() {
         bool canConnect = m_connectWatcher->result();
+        setLoading(false);  // 先结束loading状态
         if (canConnect) {
             // 在主线程中执行实际连接
             bool success = connectFtp(m_pendingConfig.host, m_pendingConfig.port,
                                       m_pendingConfig.user, m_pendingConfig.password);
-            setLoading(false);
             if (!success) {
                 QMessageBox::warning(this, "错误", QString("连接 %1 失败").arg(m_pendingConfig.name));
             }
         } else {
-            setLoading(false);
             QMessageBox::warning(this, "错误", QString("无法连接到 %1").arg(m_pendingConfig.name));
         }
     });
@@ -526,7 +534,8 @@ bool FilePanel::connectMachine(const QString &host, int port, const QString &use
     if (!m_machineFtpClient) return false;
 
     if (m_machineFtpClient->connectToServer(host, port) && m_machineFtpClient->login(user, password)) {
-        m_currentPath = "";
+        // 获取当前工作目录
+        m_currentPath = m_machineFtpClient->currentDirectory();
         updateFileList();
         if (m_connectBtn) {
             m_connectBtn->setText("断开");
@@ -580,16 +589,15 @@ void FilePanel::onConnectMachine()
 
     connect(m_connectWatcher, &QFutureWatcher<bool>::finished, this, [this]() {
         bool canConnect = m_connectWatcher->result();
+        setLoading(false);  // 先结束loading状态
         if (canConnect) {
             // 在主线程中执行实际连接
             bool success = connectMachine(m_pendingConfig.host, m_pendingConfig.port,
                                           m_pendingConfig.user, m_pendingConfig.password);
-            setLoading(false);
             if (!success) {
                 QMessageBox::warning(this, "错误", QString("连接机床 %1 失败").arg(m_pendingConfig.name));
             }
         } else {
-            setLoading(false);
             QMessageBox::warning(this, "错误", QString("无法连接到机床 %1").arg(m_pendingConfig.name));
         }
     });
@@ -747,5 +755,16 @@ void FilePanel::setLoading(bool loading)
         m_fileList->addItem("正在连接服务器...");
     } else {
         m_fileList->clear();
+    }
+}
+
+void FilePanel::onServerChanged(int index)
+{
+    Q_UNUSED(index);
+    // 如果当前已连接，断开连接
+    if (m_type == PanelType::FTP && m_ftpClient && m_ftpClient->isConnected()) {
+        disconnectFtp();
+    } else if (m_type == PanelType::Machine && m_machineFtpClient && m_machineFtpClient->isConnected()) {
+        disconnectMachine();
     }
 }
