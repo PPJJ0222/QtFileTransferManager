@@ -3,6 +3,7 @@
 #include <QAbstractSocket>
 #include <QRegularExpression>
 #include <QFile>
+#include <QDir>
 
 FtpClient::FtpClient(QObject *parent)
     : QObject(parent)
@@ -217,6 +218,17 @@ QString FtpClient::currentDirectory()
 
 bool FtpClient::downloadFile(const QString &remotePath, const QString &localPath)
 {
+    m_cancelRequested = false;
+
+    // 先获取文件大小
+    qint64 totalSize = 0;
+    if (sendCommand("SIZE " + remotePath)) {
+        QString sizeResponse = readResponse();
+        if (sizeResponse.startsWith("213")) {
+            totalSize = sizeResponse.mid(4).trimmed().toLongLong();
+        }
+    }
+
     // 进入被动模式
     QString dataHost;
     int dataPort;
@@ -245,9 +257,31 @@ bool FtpClient::downloadFile(const QString &remotePath, const QString &localPath
         return false;
     }
 
+    qint64 receivedSize = 0;
+    int lastPercent = 0;
+
     while (dataSocket.waitForReadyRead(5000)) {
-        file.write(dataSocket.readAll());
+        if (m_cancelRequested) {
+            file.close();
+            dataSocket.close();
+            QFile::remove(localPath);
+            return false;
+        }
+
+        QByteArray data = dataSocket.readAll();
+        file.write(data);
+        receivedSize += data.size();
+
+        // 计算并发送进度
+        if (totalSize > 0) {
+            int percent = static_cast<int>(receivedSize * 100 / totalSize);
+            if (percent != lastPercent) {
+                lastPercent = percent;
+                emit progressChanged(percent);
+            }
+        }
     }
+
     file.close();
     dataSocket.close();
 
@@ -258,11 +292,15 @@ bool FtpClient::downloadFile(const QString &remotePath, const QString &localPath
 
 bool FtpClient::uploadFile(const QString &localPath, const QString &remotePath)
 {
+    m_cancelRequested = false;
+
     QFile file(localPath);
     if (!file.open(QIODevice::ReadOnly)) {
         emit error("无法打开本地文件");
         return false;
     }
+
+    qint64 totalSize = file.size();
 
     // 进入被动模式
     QString dataHost;
@@ -294,10 +332,32 @@ bool FtpClient::uploadFile(const QString &localPath, const QString &remotePath)
     }
 
     // 发送文件数据
+    qint64 sentSize = 0;
+    int lastPercent = 0;
+
     while (!file.atEnd()) {
-        dataSocket.write(file.read(8192));
+        if (m_cancelRequested) {
+            file.close();
+            dataSocket.close();
+            return false;
+        }
+
+        QByteArray chunk = file.read(8192);
+        dataSocket.write(chunk);
         dataSocket.waitForBytesWritten(5000);
+
+        sentSize += chunk.size();
+
+        // 计算并发送进度
+        if (totalSize > 0) {
+            int percent = static_cast<int>(sentSize * 100 / totalSize);
+            if (percent != lastPercent) {
+                lastPercent = percent;
+                emit progressChanged(percent);
+            }
+        }
     }
+
     file.close();
     dataSocket.close();
 
@@ -311,6 +371,86 @@ bool FtpClient::deleteFile(const QString &remotePath)
     if (!sendCommand("DELE " + remotePath)) return false;
     QString response = readResponse();
     return response.startsWith("250");
+}
+
+bool FtpClient::createDirectory(const QString &remotePath)
+{
+    if (!sendCommand("MKD " + remotePath)) return false;
+    QString response = readResponse();
+    // 257 表示目录创建成功，550 可能表示目录已存在
+    return response.startsWith("257") || response.startsWith("550");
+}
+
+bool FtpClient::downloadDirectory(const QString &remotePath, const QString &localPath)
+{
+    if (m_cancelRequested) return false;
+
+    // 创建本地目录
+    QDir localDir;
+    if (!localDir.mkpath(localPath)) {
+        emit error("无法创建本地目录: " + localPath);
+        return false;
+    }
+
+    // 获取远程目录内容
+    auto files = listFilesWithInfo(remotePath);
+
+    for (const auto &file : files) {
+        if (m_cancelRequested) return false;
+
+        QString remoteFilePath = remotePath + "/" + file.name;
+        QString localFilePath = localPath + "/" + file.name;
+
+        if (file.isDir) {
+            // 递归下载子目录
+            if (!downloadDirectory(remoteFilePath, localFilePath)) {
+                return false;
+            }
+        } else {
+            // 下载文件
+            if (!downloadFile(remoteFilePath, localFilePath)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool FtpClient::uploadDirectory(const QString &localPath, const QString &remotePath)
+{
+    if (m_cancelRequested) return false;
+
+    // 创建远程目录
+    if (!createDirectory(remotePath)) {
+        emit error("无法创建远程目录: " + remotePath);
+        return false;
+    }
+
+    // 获取本地目录内容
+    QDir localDir(localPath);
+    auto entries = localDir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot);
+
+    for (const auto &entry : entries) {
+        if (m_cancelRequested) return false;
+
+        QString localFilePath = entry.absoluteFilePath();
+        QString remoteFilePath = remotePath + "/" + entry.fileName();
+
+        if (entry.isDir()) {
+            // 递归上传子目录
+            if (!uploadDirectory(localFilePath, remoteFilePath)) {
+                return false;
+            }
+        } else {
+            // 上传文件
+            if (!uploadFile(localFilePath, remoteFilePath)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 bool FtpClient::sendCommand(const QString &cmd)

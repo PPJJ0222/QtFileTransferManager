@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QList>
+#include <atomic>
 
 class QTcpSocket;
 
@@ -32,6 +33,15 @@ public:
     bool uploadFile(const QString &localPath, const QString &remotePath);
     bool deleteFile(const QString &remotePath);
 
+    // 目录操作
+    bool createDirectory(const QString &remotePath);
+    bool downloadDirectory(const QString &remotePath, const QString &localPath);
+    bool uploadDirectory(const QString &localPath, const QString &remotePath);
+
+    // 取消传输
+    void requestCancel() { m_cancelRequested = true; }
+    void resetCancel() { m_cancelRequested = false; }
+
 signals:
     void progressChanged(int percent);
     void error(const QString &message);
@@ -44,6 +54,7 @@ private:
     QTcpSocket *m_controlSocket;
     QString m_host;
     int m_port;
+    std::atomic<bool> m_cancelRequested{false};
 };
 
 #endif // FTPCLIENT_H

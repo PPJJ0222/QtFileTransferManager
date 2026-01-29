@@ -4,9 +4,9 @@
 
 **小型实用工具** - 专注核心功能,保持简洁
 
-**技术栈**: Qt 6.10.1, C++23, CMake
+**技术栈**: Qt 6 + WebEngine, Vue 3 + TypeScript + Vite, C++23, CMake
 **目标平台**: Windows
-**架构**: UI+Core两层架构
+**架构**: Web混合架构 (Qt WebEngine + Vue.js 前端)
 
 ## 核心功能
 
@@ -36,38 +36,51 @@ QtFileTransferManager/
 ├── CMakeLists.txt
 ├── ftp_servers.ini          # FTP服务器配置
 ├── machine_servers.ini      # 机床服务器配置
-└── src/
-    ├── main.cpp
-    ├── ui/
-    │   ├── MainWindow.h/cpp           # 主窗口 + 菜单栏
-    │   ├── FilePanel.h/cpp            # 文件面板 (FTP/本地/机床)
-    │   ├── ProgressBar.h/cpp          # 进度条
-    │   └── MachineConfigDialog.h/cpp  # 机床配置对话框
-    └── core/
-        ├── FileTransfer.h/cpp         # 传输管理器
-        ├── FtpClient.h/cpp            # FTP客户端
-        └── LocalFileOps.h/cpp         # 本地文件操作
+├── src/
+│   ├── main.cpp
+│   ├── web/
+│   │   ├── WebWindow.h/cpp  # WebEngine主窗口
+│   │   └── Bridge.h/cpp     # C++/JS通信桥梁
+│   ├── core/
+│   │   ├── FileTransfer.h/cpp   # 传输管理器
+│   │   ├── FtpClient.h/cpp      # FTP客户端
+│   │   └── LocalFileOps.h/cpp   # 本地文件操作
+│   └── utils/
+│       └── FileInfo.h           # 文件信息结构
+├── web/                     # Vue.js 前端项目
+│   ├── package.json
+│   ├── vite.config.ts
+│   ├── tsconfig.json
+│   ├── index.html
+│   └── src/
+│       ├── main.ts
+│       ├── App.vue
+│       ├── bridge.ts        # Qt Bridge 封装
+│       ├── types/
+│       │   └── index.ts
+│       └── components/
+│           └── ProgressBar.vue
+└── resources/
+    ├── resources.qrc
+    └── web/                 # 构建后的前端资源
 ```
 
 ## 核心组件
 
-### MainWindow
-- 三列QSplitter布局
-- 菜单栏: 文件传输(刷新/退出) + 机床配置
-- 协调FilePanel之间的传输
+### WebWindow (Qt层)
+- 基于 QWebEngineView 的主窗口
+- 通过 QWebChannel 与前端通信
+- 支持开发模式 (加载本地开发服务器)
 
-### FilePanel
-- 可复用组件,支持三种类型: FTP/本地/机床
-- QListWidget显示文件列表
-- 路径栏 + 刷新按钮 + 服务器选择下拉框
-- **异步连接**: 使用QtConcurrent在后台线程测试连接,避免UI卡顿
-- **Loading状态**: 连接时显示"连接中...",禁用按钮/下拉框/文件列表
-- **多选支持**: ExtendedSelection模式，支持Ctrl/Cmd多选文件拖拽
+### Bridge (Qt层)
+- C++ 与 JavaScript 的通信桥梁
+- 暴露所有核心功能给前端调用
+- 通过信号向前端发送事件通知
 
-### MachineConfigDialog
-- 显示机床服务器列表
-- 支持添加/编辑/删除服务器
-- 保存配置到 `machine_servers.ini`
+### 前端 (Vue.js)
+- Vue 3 + TypeScript + Vite
+- 三列文件浏览器布局
+- 响应式UI，支持拖拽传输
 
 ### FileTransfer
 - 协调4种传输路径
@@ -103,43 +116,28 @@ password=password
 ## UI设计规范
 
 ### 视觉风格
-采用**深蓝专业风** + **线性图标**，参考VS Code / 企业软件风格
+采用**现代Web风格**，基于 Vue.js 组件化开发
 
-### 配色方案
-| 用途 | 颜色值 |
-|------|--------|
-| 主色调 | #2D5A8A |
-| 辅助色 | #4A90D9 |
-| 悬停色 | #5BA0E9 |
-| 背景色 | #F5F5F5 |
-| 面板背景 | #FFFFFF |
-| 边框色 | #E0E0E0 |
-| 成功色 | #4CAF50 |
-| 警告色 | #FF9800 |
+### 前端技术栈
+- **框架**: Vue 3 (Composition API)
+- **语言**: TypeScript
+- **构建工具**: Vite
+- **样式**: CSS / SCSS
 
-### 资源文件
+### 前端组件
 ```
-resources/
-├── resources.qrc           # Qt资源文件
-├── styles/
-│   └── main.qss            # 主样式表
-└── icons/                  # SVG线性图标
-    ├── folder.svg, file.svg, refresh.svg, up.svg
-    ├── connect.svg, disconnect.svg
-    ├── add.svg, edit.svg, delete.svg, save.svg, cancel.svg
-    └── server.svg, machine.svg, local.svg
+web/src/
+├── App.vue              # 主应用组件
+├── bridge.ts            # Qt Bridge 封装
+├── types/index.ts       # TypeScript 类型定义
+└── components/
+    └── ProgressBar.vue  # 进度条组件
 ```
 
-### UI组件
-```
-src/ui/
-├── StyleManager.h/cpp      # 样式管理器
-├── MainWindow.h/cpp        # 主窗口
-├── FilePanel.h/cpp         # 文件面板
-├── ProgressBar.h/cpp       # 进度条
-└── MachineConfigDialog.h/cpp # 机床配置对话框
-```
+### 开发模式
+- 开发时: 前端运行 `npm run dev`，Qt 加载 localhost
+- 生产时: 前端构建到 `resources/web/`，Qt 加载本地资源
 
 ---
 
-**项目状态**: UI美化已完成, 异步连接已实现, 批量文件传输已实现
+**项目状态**: 已迁移至 Web 混合架构 (Qt WebEngine + Vue.js)

@@ -1,23 +1,27 @@
 #include <QApplication>
-#include <QStyleFactory>
-#include "ui/MainWindow.h"
-#include "ui/StyleManager.h"
+#include <QCommandLineParser>
+#include "web/WebWindow.h"
 
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
     app.setApplicationName("Qt文件传输管理器");
 
-#ifdef Q_OS_MAC
-    // macOS 使用 Fusion 风格避免原生焦点框问题
-    app.setStyle(QStyleFactory::create("Fusion"));
-#endif
+    // 命令行参数解析
+    QCommandLineParser parser;
+    parser.setApplicationDescription("Qt文件传输管理器");
+    parser.addHelpOption();
 
-    // 加载全局样式
-    StyleManager::applyStyle(&app);
+    // --dev 开发模式（加载 localhost:5173）
+    QCommandLineOption devOption("dev", "开发模式");
+    parser.addOption(devOption);
 
-    MainWindow window;
+    parser.process(app);
+
+    bool devMode = parser.isSet(devOption);
+
+    // WebEngine 模式
+    WebWindow window(devMode);
     window.show();
-
     return app.exec();
 }

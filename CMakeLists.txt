@@ -7,10 +7,20 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 if(WIN32)
-    set(CMAKE_PREFIX_PATH "C:/Qt/6.10.1/msvc2022_64")
+    set(CMAKE_PREFIX_PATH "C:/Qt/6.10.2/msvc2022_64")
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network Concurrent)
+find_package(Qt6 REQUIRED COMPONENTS Core Network Concurrent WebEngineWidgets WebChannel)
+
+# Web 前端构建
+set(WEB_SOURCE_DIR ${CMAKE_SOURCE_DIR}/web)
+set(WEB_OUTPUT_DIR ${CMAKE_SOURCE_DIR}/resources/web)
+
+add_custom_target(build_web
+    COMMAND npm run build
+    WORKING_DIRECTORY ${WEB_SOURCE_DIR}
+    COMMENT "构建 Web 前端..."
+)
 
 # 资源文件
 set(RESOURCES
@@ -19,11 +29,11 @@ set(RESOURCES
 
 add_executable(QtFileTransferManager
     src/main.cpp
-    src/ui/MainWindow.cpp
-    src/ui/FilePanel.cpp
-    src/ui/ProgressBar.cpp
-    src/ui/MachineConfigDialog.cpp
-    src/ui/StyleManager.cpp
+    # WebEngine UI
+    src/web/WebWindow.cpp
+    src/web/Bridge.cpp
+    src/web/FtpWorker.cpp
+    # Core 层
     src/core/FileTransfer.cpp
     src/core/FtpClient.cpp
     src/core/LocalFileOps.cpp
@@ -36,7 +46,22 @@ target_include_directories(QtFileTransferManager PRIVATE
 
 target_link_libraries(QtFileTransferManager
     Qt6::Core
-    Qt6::Widgets
     Qt6::Network
     Qt6::Concurrent
+    Qt6::WebEngineWidgets
+    Qt6::WebChannel
+)
+
+# 确保构建主程序前先构建 web
+add_dependencies(QtFileTransferManager build_web)
+
+# 构建后复制配置文件到可执行文件目录
+add_custom_command(TARGET QtFileTransferManager POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/ftp_servers.ini"
+        "$<TARGET_FILE_DIR:QtFileTransferManager>/ftp_servers.ini"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/machine_servers.ini"
+        "$<TARGET_FILE_DIR:QtFileTransferManager>/machine_servers.ini"
+    COMMENT "复制配置文件到输出目录..."
 )

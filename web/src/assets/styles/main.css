@@ -1,0 +1,161 @@
+/* Tailwind v4 导入 */
+@import "tailwindcss";
+
+/* Inter 字体 */
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+
+/* 设计系统 CSS 变量 */
+:root {
+  /* 颜色 - 玻璃效果 */
+  --color-bg-glass: rgba(255, 255, 255, 0.5);
+  --color-bg-glass-border: rgba(255, 255, 255, 0.25);
+  --color-bg-glass-light: rgba(255, 255, 255, 0.8);
+  --color-bg-page: #FFFFFF;
+
+  /* 颜色 - 主题色 */
+  --color-primary: #3B82F6;
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+
+  /* 颜色 - 文字 */
+  --color-text-primary: #1F2937;
+  --color-text-secondary: #6B7280;
+  --color-text-tertiary: #9CA3AF;
+
+  /* 颜色 - 发光效果 */
+  --color-glow-blue: #60A5FA;
+  --color-glow-cyan: #22D3EE;
+  --color-glow-green: #4ADE80;
+  --color-glow-pink: #F472B6;
+  --color-glow-purple: #A78BFA;
+
+  /* 间距 */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+
+  /* 圆角 */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  /* 字体 */
+  --font-family-sans: 'Inter', system-ui, sans-serif;
+
+  /* 阴影 */
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --shadow-glass-sm: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-glass-lg: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* 全局基础样式 */
+@layer base {
+  html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: var(--font-family-sans);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+  }
+
+  #app {
+    height: 100%;
+  }
+
+  .font-primary {
+    font-family: var(--font-family-sans);
+  }
+}
+
+/* 毛玻璃效果工具类 */
+@layer utilities {
+  .glass {
+    background: var(--color-bg-glass);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--color-bg-glass-border);
+  }
+
+  .glass-light {
+    background: var(--color-bg-glass-light);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .glass-panel {
+    background: var(--color-bg-glass-light);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--color-bg-glass-border);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  }
+
+  .glass-input {
+    background: var(--color-bg-glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--color-bg-glass-border);
+  }
+
+  /* 下拉组件触发器 */
+  .glass-dropdown-trigger {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid #E5E7EB;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  }
+
+  .glass-dropdown-trigger:hover:not(:disabled) {
+    border-color: #D1D5DB;
+  }
+
+  /* 下拉菜单 */
+  .glass-dropdown-menu {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid #E5E7EB;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  }
+
+  /* 自定义滚动条 - 圆角设计，无白色边框 */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.12) transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.12);
+    border-radius: 4px;
+    transition: background 0.2s;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.2);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
