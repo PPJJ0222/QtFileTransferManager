@@ -46,6 +46,7 @@ public slots:
     void loadFtpServers();
     void loadMachineServers();
     void saveMachineServer(const QVariantMap &config);
+    void updateMachineServer(const QString &originalName, const QVariantMap &config);
     void deleteMachineServer(const QString &name);
 
 signals:

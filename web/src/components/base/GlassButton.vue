@@ -14,7 +14,7 @@
         :size="variant === 'icon' ? 18 : 16"
         :class="variant === 'primary' ? 'text-white' : 'text-[var(--color-text-primary)]'"
       />
-      <span v-if="variant !== 'icon'">
+      <span v-if="variant !== 'icon'" class="inline-flex items-center">
         <slot />
       </span>
     </template>
@@ -56,8 +56,8 @@ const buttonClasses = computed(() => {
 
   const variants: Record<string, string> = {
     primary: 'bg-gradient-to-b from-[#3B82F6] to-[#2563EB] text-white hover:from-[#2563EB] hover:to-[#1D4ED8] shadow-[0_2px_8px_rgba(59,130,246,0.25)]',
-    secondary: 'glass-light text-[var(--color-text-primary)] hover:bg-white/90 border border-[#E5E7EB] shadow-[0_1px_4px_rgba(0,0,0,0.06)]',
-    icon: 'glass-light hover:bg-white/90 border border-[#E5E7EB] shadow-[0_1px_4px_rgba(0,0,0,0.06)]'
+    secondary: 'glass-light text-[var(--color-text-primary)] border border-[#E5E7EB] shadow-[0_1px_4px_rgba(0,0,0,0.06)] hover:bg-[#F3F4F6] hover:border-[#D1D5DB] hover:shadow-[0_2px_6px_rgba(0,0,0,0.1)]',
+    icon: 'glass-light border border-[#E5E7EB] shadow-[0_1px_4px_rgba(0,0,0,0.06)] hover:bg-[#F3F4F6] hover:border-[#D1D5DB] hover:shadow-[0_2px_6px_rgba(0,0,0,0.1)]'
   }
 
   const sizes: Record<string, string> = {

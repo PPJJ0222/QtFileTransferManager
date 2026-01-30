@@ -258,6 +258,26 @@ void Bridge::saveMachineServer(const QVariantMap &config)
     settings.setValue("Servers/count", count + 1);
 }
 
+void Bridge::updateMachineServer(const QString &originalName, const QVariantMap &config)
+{
+    QString configPath = QCoreApplication::applicationDirPath() + "/machine_servers.ini";
+    QSettings settings(configPath, QSettings::IniFormat);
+    int count = settings.value("Servers/count", 0).toInt();
+
+    // 查找并更新指定服务器
+    for (int i = 0; i < count; ++i) {
+        QString prefix = QString("Server_%1/").arg(i);
+        if (settings.value(prefix + "name").toString() == originalName) {
+            settings.setValue(prefix + "name", config["name"]);
+            settings.setValue(prefix + "host", config["host"]);
+            settings.setValue(prefix + "port", config["port"]);
+            settings.setValue(prefix + "user", config["user"]);
+            settings.setValue(prefix + "password", config["password"]);
+            break;
+        }
+    }
+}
+
 void Bridge::deleteMachineServer(const QString &name)
 {
     QString configPath = QCoreApplication::applicationDirPath() + "/machine_servers.ini";

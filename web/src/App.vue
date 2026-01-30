@@ -2,6 +2,7 @@
 import { ref, reactive, provide, onMounted } from 'vue'
 import FilePanel from './components/FilePanel.vue'
 import ProgressBar from './components/ProgressBar.vue'
+import MachineServerConfig from './components/MachineServerConfig.vue'
 import { Header } from './components/layout'
 import { GlassToastContainer } from './components/base'
 import { getBridge, onBridgeReady } from './bridge'
@@ -9,6 +10,9 @@ import { useToast } from './composables/useToast'
 import type { PanelType, PanelState, TransferTask, TransferContext, TransferItem } from './types'
 
 const toast = useToast()
+
+// 机床配置弹窗状态
+const showMachineConfig = ref(false)
 
 // 面板状态管理
 const panelStates = reactive<Record<PanelType, PanelState>>({
@@ -186,8 +190,8 @@ function handleRefresh() {
   // 刷新所有面板
 }
 
-function handleSettings() {
-  // 打开设置
+function handleMachineConfig() {
+  showMachineConfig.value = true
 }
 </script>
 
@@ -208,7 +212,7 @@ function handleSettings() {
       <Header
         title="文件传输管理器"
         @refresh="handleRefresh"
-        @settings="handleSettings"
+        @machineConfig="handleMachineConfig"
       />
 
       <!-- 主内容区 -->
@@ -231,6 +235,12 @@ function handleSettings() {
 
     <!-- Toast 容器 -->
     <GlassToastContainer />
+
+    <!-- 机床配置弹窗 -->
+    <MachineServerConfig
+      :visible="showMachineConfig"
+      @close="showMachineConfig = false"
+    />
   </div>
 </template>
 

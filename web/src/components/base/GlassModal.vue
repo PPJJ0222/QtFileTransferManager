@@ -8,6 +8,7 @@ defineProps<{
   confirmText?: string
   cancelText?: string
   confirmVariant?: 'primary' | 'secondary'
+  width?: string
 }>()
 
 const emit = defineEmits<{
@@ -29,7 +30,10 @@ const emit = defineEmits<{
           @click="emit('cancel')"
         />
         <!-- 对话框 -->
-        <div class="relative bg-white/90 backdrop-blur-md rounded-2xl shadow-xl border border-white/50 w-[400px] max-w-[90vw]">
+        <div
+          class="relative bg-white/90 backdrop-blur-md rounded-2xl shadow-xl border border-white/50 max-w-[90vw]"
+          :style="{ width: width || '400px' }"
+        >
           <!-- 标题栏 -->
           <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200/50">
             <h3 class="text-lg font-semibold text-[var(--color-text-primary)]">
@@ -48,7 +52,11 @@ const emit = defineEmits<{
           </div>
           <!-- 按钮 -->
           <div class="flex justify-end gap-3 px-5 py-4 border-t border-gray-200/50">
-            <GlassButton variant="secondary" @click="emit('cancel')">
+            <GlassButton
+              v-if="cancelText !== ''"
+              variant="secondary"
+              @click="emit('cancel')"
+            >
               {{ cancelText || '取消' }}
             </GlassButton>
             <GlassButton

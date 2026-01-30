@@ -4,7 +4,7 @@
 
 **小型实用工具** - 专注核心功能,保持简洁
 
-**技术栈**: Qt 6 + WebEngine, Vue 3 + TypeScript + Vite, C++23, CMake
+**技术栈**: Qt 6 + WebEngine, Vue 3 + TypeScript + Vite + Tailwind CSS, C++23, CMake
 **目标平台**: Windows
 **架构**: Web混合架构 (Qt WebEngine + Vue.js 前端)
 
@@ -40,7 +40,8 @@ QtFileTransferManager/
 │   ├── main.cpp
 │   ├── web/
 │   │   ├── WebWindow.h/cpp  # WebEngine主窗口
-│   │   └── Bridge.h/cpp     # C++/JS通信桥梁
+│   │   ├── Bridge.h/cpp     # C++/JS通信桥梁
+│   │   └── FtpWorker.h/cpp  # FTP工作线程
 │   ├── core/
 │   │   ├── FileTransfer.h/cpp   # 传输管理器
 │   │   ├── FtpClient.h/cpp      # FTP客户端
@@ -56,10 +57,31 @@ QtFileTransferManager/
 │       ├── main.ts
 │       ├── App.vue
 │       ├── bridge.ts        # Qt Bridge 封装
+│       ├── assets/styles/   # 样式文件
+│       │   └── main.css     # Tailwind CSS 主样式
 │       ├── types/
-│       │   └── index.ts
+│       │   ├── index.ts     # 主要类型定义
+│       │   └── toast.ts     # Toast 通知类型
+│       ├── composables/
+│       │   └── useToast.ts  # Toast 通知 Composable
 │       └── components/
-│           └── ProgressBar.vue
+│           ├── FilePanel.vue           # 文件浏览面板
+│           ├── ProgressBar.vue         # 传输进度条
+│           ├── MachineServerConfig.vue # 机床服务器配置
+│           ├── base/                   # 玻璃态UI组件库
+│           │   ├── GlassPanel.vue
+│           │   ├── GlassButton.vue
+│           │   ├── GlassInput.vue
+│           │   ├── GlassDropdown.vue
+│           │   ├── GlassModal.vue
+│           │   ├── GlassContextMenu.vue
+│           │   ├── GlassToast.vue
+│           │   └── GlassToastContainer.vue
+│           ├── file/                   # 文件列表组件
+│           │   ├── FileListItem.vue
+│           │   └── FolderListItem.vue
+│           └── layout/                 # 布局组件
+│               └── Header.vue
 └── resources/
     ├── resources.qrc
     └── web/                 # 构建后的前端资源
@@ -96,6 +118,11 @@ QtFileTransferManager/
 - 静态工具类
 - 列表/复制/删除/创建目录/重命名
 
+### FtpWorker (Qt层)
+- FTP 工作线程
+- 处理 FTP 和机床的异步连接操作
+- 避免阻塞主线程
+
 ## 配置文件格式
 
 ### ftp_servers.ini / machine_servers.ini
@@ -120,24 +147,56 @@ password=password
 
 ### 前端技术栈
 - **框架**: Vue 3 (Composition API)
-- **语言**: TypeScript
-- **构建工具**: Vite
-- **样式**: CSS / SCSS
+- **语言**: TypeScript 5.3
+- **构建工具**: Vite 5.0
+- **样式**: Tailwind CSS 4.1
+- **图标**: Lucide Vue Next
+- **字体**: Inter (@fontsource/inter)
 
 ### 前端组件
 ```
 web/src/
 ├── App.vue              # 主应用组件
 ├── bridge.ts            # Qt Bridge 封装
-├── types/index.ts       # TypeScript 类型定义
+├── types/
+│   ├── index.ts         # 主要类型定义
+│   └── toast.ts         # Toast 通知类型
+├── composables/
+│   └── useToast.ts      # Toast 通知 Composable
 └── components/
-    └── ProgressBar.vue  # 进度条组件
+    ├── FilePanel.vue           # 文件浏览面板
+    ├── ProgressBar.vue         # 传输进度条
+    ├── MachineServerConfig.vue # 机床服务器配置弹窗
+    ├── base/                   # 玻璃态UI组件库
+    │   ├── GlassPanel.vue      # 玻璃态面板
+    │   ├── GlassButton.vue     # 玻璃态按钮
+    │   ├── GlassInput.vue      # 玻璃态输入框
+    │   ├── GlassDropdown.vue   # 玻璃态下拉菜单
+    │   ├── GlassModal.vue      # 玻璃态模态框
+    │   ├── GlassContextMenu.vue # 玻璃态右键菜单
+    │   ├── GlassToast.vue      # 玻璃态通知
+    │   └── GlassToastContainer.vue # Toast容器
+    ├── file/                   # 文件列表组件
+    │   ├── FileListItem.vue    # 文件列表项
+    │   └── FolderListItem.vue  # 文件夹列表项
+    └── layout/                 # 布局组件
+        └── Header.vue          # 顶部菜单栏
 ```
 
 ### 开发模式
 - 开发时: 前端运行 `npm run dev`，Qt 加载 localhost
 - 生产时: 前端构建到 `resources/web/`，Qt 加载本地资源
 
+### 玻璃态UI组件库 (base/)
+项目采用统一的玻璃态(Glassmorphism)设计风格：
+- **GlassPanel** - 基础容器面板
+- **GlassButton** - 按钮组件
+- **GlassInput** - 输入框组件
+- **GlassDropdown** - 下拉选择器
+- **GlassModal** - 模态对话框
+- **GlassContextMenu** - 右键上下文菜单
+- **GlassToast** - 通知提示组件
+
 ---
 
-**项目状态**: 已迁移至 Web 混合架构 (Qt WebEngine + Vue.js)
+**项目状态**: Web 混合架构开发中，已完成玻璃态UI组件库和核心传输功能

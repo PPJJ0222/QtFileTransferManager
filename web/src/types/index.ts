@@ -53,6 +53,7 @@ export interface QtBridge {
   loadFtpServers(): void
   loadMachineServers(): void
   saveMachineServer(config: ServerConfig): void
+  updateMachineServer(originalName: string, config: ServerConfig): void
   deleteMachineServer(name: string): void
 }
 

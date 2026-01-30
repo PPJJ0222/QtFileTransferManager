@@ -8,14 +8,17 @@
     </div>
     <div class="flex items-center gap-2">
       <slot name="actions">
-        <GlassButton variant="icon" icon="Settings" @click="$emit('settings')" />
+        <GlassButton variant="secondary" size="sm" @click="$emit('machineConfig')">
+          <Server :size="16" class="mr-1.5" />
+          机床配置
+        </GlassButton>
       </slot>
     </div>
   </header>
 </template>
 
 <script setup lang="ts">
-import { HardDrive } from 'lucide-vue-next'
+import { HardDrive, Server } from 'lucide-vue-next'
 import { GlassButton } from '@/components/base'
 
 interface HeaderProps {
@@ -28,6 +31,6 @@ withDefaults(defineProps<HeaderProps>(), {
 
 defineEmits<{
   refresh: []
-  settings: []
+  machineConfig: []
 }>()
 </script>
